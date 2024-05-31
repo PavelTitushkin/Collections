@@ -12,7 +12,6 @@ namespace Collections
             customDictionary.Add("Яблоко", 5.98);
             customDictionary.Add("Груша", 7.47);
             customDictionary.Add("Ананас", 10.55);
-
             foreach (var kvp in customDictionary)
             {
                 Console.WriteLine($"Фрукт: {kvp.Key}, Цена: {kvp.Value}");

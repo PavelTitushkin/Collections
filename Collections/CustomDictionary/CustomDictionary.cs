@@ -22,7 +22,7 @@ namespace Collections.CustomDictionary
         private IEqualityComparer<TKey> comparer;
         private KeyCollection keys;
         private ValueCollection values;
-        //private Object _syncRoot;
+        private ReadWriteLocker locker = new ReadWriteLocker();
 
         public CustomDictionary() : this(0, null) { }
 
@@ -47,17 +47,23 @@ namespace Collections.CustomDictionary
         {
             get
             {
-                int i = FindEntry(key);
-                if (i >= 0)
+                using (locker.Read())
                 {
-                    return entries[i].value;
-                }
+                    int i = FindEntry(key);
+                    if (i >= 0)
+                    {
+                        return entries[i].value;
+                    }
 
-                return default(TValue);
+                    return default(TValue);
+                }
             }
             set
             {
-                Insert(key, value, false);
+                using(locker.Write())
+                {
+                    Insert(key, value, false);
+                }
             }
         }
 
@@ -65,13 +71,16 @@ namespace Collections.CustomDictionary
         {
             get
             {
-                Contract.Ensures(Contract.Result<KeyCollection>() != null);
-                if (keys == null)
+                using (locker.Read())
                 {
-                    keys = new KeyCollection(this);
-                }
+                    Contract.Ensures(Contract.Result<KeyCollection>() != null);
+                    if (keys == null)
+                    {
+                        keys = new KeyCollection(this);
+                    }
 
-                return keys;
+                    return keys;
+                }
             }
         }
 
@@ -79,63 +88,87 @@ namespace Collections.CustomDictionary
         {
             get
             {
-                Contract.Ensures(Contract.Result<ValueCollection>() != null);
-                if (values == null)
+                using (locker.Read())
                 {
-                    values = new ValueCollection(this);
-                }
+                    Contract.Ensures(Contract.Result<ValueCollection>() != null);
+                    if (values == null)
+                    {
+                        values = new ValueCollection(this);
+                    }
 
-                return values;
+                    return values;
+                }
             }
         }
 
         public int Count
         {
-            get { return count - freeCount; }
+            get 
+            {
+                using (locker.Read())
+                {
+                    return count - freeCount;
+                }
+            }
         }
 
         public bool IsReadOnly => false;
 
         public void Add(TKey key, TValue value)
         {
-            Insert(key, value, true);
+            using (locker.Write())
+            {
+                Insert(key, value, true);
+            }
         }
 
         public void Add(KeyValuePair<TKey, TValue> item)
         {
-            Add(item.Key, item.Value);
+            using (locker.Write())
+            {
+                Add(item.Key, item.Value);
+            }
         }
 
         public void Clear()
         {
-            if (count > 0)
+            using (locker.Write())
             {
-                for (int i = 0; i < buckets.Length; i++)
+                if (count > 0)
                 {
-                    buckets[i] = -1;
+                    for (int i = 0; i < buckets.Length; i++)
+                    {
+                        buckets[i] = -1;
+                    }
+                    Array.Clear(entries, 0, count);
+                    freeList = -1;
+                    count = 0;
+                    freeCount = 0;
+                    version++;
                 }
-                Array.Clear(entries, 0, count);
-                freeList = -1;
-                count = 0;
-                freeCount = 0;
-                version++;
             }
         }
 
         public bool Contains(KeyValuePair<TKey, TValue> item)
         {
-            int i = FindEntry(item.Key);
-            if (i >= 0 && EqualityComparer<TValue>.Default.Equals(entries[i].value, item.Value))
+            using (locker.Read())
             {
-                return true;
-            }
+                int i = FindEntry(item.Key);
+                if (i >= 0 && EqualityComparer<TValue>.Default.Equals(entries[i].value, item.Value))
+                {
+                    return true;
+                }
 
-            return false;
+                return false;
+            }
         }
 
         public bool ContainsKey(TKey key)
         {
-            return FindEntry(key) >= 0;
+            using (locker.Read())
+            {
+                return FindEntry(key) >= 0;
+            }
         }
 
         public void CopyTo(KeyValuePair<TKey, TValue>[] array, int arrayIndex)
@@ -149,83 +182,96 @@ namespace Collections.CustomDictionary
             {
                 throw new ArgumentNullException();
             }
-
-            if (buckets != null)
+            using (locker.Write())
             {
-                int hashCode = comparer.GetHashCode(key) & 0x7FFFFFFF;
-                int bucket = hashCode % buckets.Length;
-                int last = -1;
-                for (int i = buckets[bucket]; i >= 0; last = i, i = entries[i].next)
+                if (buckets != null)
                 {
-                    if (entries[i].hashCode == hashCode && comparer.Equals(entries[i].key, key))
+                    int hashCode = comparer.GetHashCode(key) & 0x7FFFFFFF;
+                    int bucket = hashCode % buckets.Length;
+                    int last = -1;
+                    for (int i = buckets[bucket]; i >= 0; last = i, i = entries[i].next)
                     {
-                        if (last < 0)
+                        if (entries[i].hashCode == hashCode && comparer.Equals(entries[i].key, key))
                         {
-                            buckets[bucket] = entries[i].next;
+                            if (last < 0)
+                            {
+                                buckets[bucket] = entries[i].next;
+                            }
+                            else
+                            {
+                                entries[last].next = entries[i].next;
+                            }
+                            entries[i].hashCode = -1;
+                            entries[i].next = freeList;
+                            entries[i].key = default(TKey);
+                            entries[i].value = default(TValue);
+                            freeList = i;
+                            freeCount++;
+                            version++;
+                            return true;
                         }
-                        else
-                        {
-                            entries[last].next = entries[i].next;
-                        }
-                        entries[i].hashCode = -1;
-                        entries[i].next = freeList;
-                        entries[i].key = default(TKey);
-                        entries[i].value = default(TValue);
-                        freeList = i;
-                        freeCount++;
-                        version++;
-                        return true;
                     }
                 }
             }
-
             return false;
         }
 
         public bool Remove(KeyValuePair<TKey, TValue> item)
         {
-            int i = FindEntry(item.Key);
-            if (i >= 0 && EqualityComparer<TValue>.Default.Equals(entries[i].value, item.Value))
+            using (locker.Write())
             {
-                Remove(item.Key);
+                int i = FindEntry(item.Key);
+                if (i >= 0 && EqualityComparer<TValue>.Default.Equals(entries[i].value, item.Value))
+                {
+                    Remove(item.Key);
 
-                return true;
+                    return true;
+                }
+
+                return false;
             }
-
-            return false;
         }
 
         public bool TryGetValue(TKey key, [MaybeNullWhen(false)] out TValue value)
         {
-            int i = FindEntry(key);
-            if (i >= 0)
+            using (locker.Read())
             {
-                value = entries[i].value;
-                return true;
-            }
-            value = default(TValue);
+                int i = FindEntry(key);
+                if (i >= 0)
+                {
+                    value = entries[i].value;
+                    return true;
+                }
+                value = default(TValue);
 
-            return false;
+                return false;
+            }
         }
 
         IEnumerator IEnumerable.GetEnumerator()
         {
-            for (int i = 0; i < count; i++)
+            using(locker.Read())
             {
-                if (entries[i].hashCode >= 0)
+                for (int i = 0; i < count; i++)
                 {
-                    yield return new KeyValuePair<TKey, TValue>(entries[i].key, entries[i].value);
+                    if (entries[i].hashCode >= 0)
+                    {
+                        yield return new KeyValuePair<TKey, TValue>(entries[i].key, entries[i].value);
+                    }
                 }
             }
         }
 
         public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator()
         {
-            for (int i = 0; i < count; i++)
+           using(locker.Read())
             {
-                if (entries[i].hashCode >= 0)
+                for (int i = 0; i < count; i++)
                 {
-                    yield return new KeyValuePair<TKey, TValue>(entries[i].key, entries[i].value);
+                    if (entries[i].hashCode >= 0)
+                    {
+                        yield return new KeyValuePair<TKey, TValue>(entries[i].key, entries[i].value);
+                    }
                 }
             }
         }
@@ -273,7 +319,6 @@ namespace Collections.CustomDictionary
             {
                 throw new ArgumentNullException();
             }
-
             if (buckets == null || buckets.Length == 0)
             {
                 Initialize(0);
