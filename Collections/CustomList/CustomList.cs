@@ -1,5 +1,4 @@
-﻿using Collections.CustomDictionary;
-using System.Collections;
+﻿using System.Collections;
 
 namespace Collections.CustomList
 {
@@ -8,7 +7,7 @@ namespace Collections.CustomList
         private T[] _array;
         private int _count;
         static readonly T[] _emptyArray = new T[0];
-        public ReadWriteLocker _locker = new ReadWriteLocker();
+        private readonly object _locker = new object();
         public CustomList()
         {
             _array = new T[4];
@@ -34,7 +33,7 @@ namespace Collections.CustomList
         {
             get
             {
-                using (_locker.Read())
+                lock (_locker)
                 {
                     if (index < 0 || index >= _count)
                     {
@@ -46,7 +45,7 @@ namespace Collections.CustomList
             }
             set
             {
-                using(_locker.Write())
+                lock (_locker)
                 {
                     if (index < 0 || index >= _count)
                     {
@@ -61,7 +60,7 @@ namespace Collections.CustomList
         {
             get
             {
-                using(_locker.Read())
+                lock (_locker)
                 {
                     return _count;
                 }
@@ -72,7 +71,7 @@ namespace Collections.CustomList
 
         public void Add(T item)
         {
-            using (_locker.Write())
+            lock (_locker)
             {
                 if (_count == _array.Length)
                 {
@@ -86,7 +85,7 @@ namespace Collections.CustomList
 
         public void Clear()
         {
-            using (_locker.Write())
+            lock (_locker)
             {
                 if (_count > 0)
                 {
@@ -98,7 +97,7 @@ namespace Collections.CustomList
 
         public bool Contains(T item)
         {
-            using (_locker.Read())
+            lock (_locker)
             {
                 for (int i = 0; i < _count; i++)
                 {
@@ -114,7 +113,7 @@ namespace Collections.CustomList
 
         public void CopyTo(T[] array, int arrayIndex)
         {
-            using (_locker.Read())
+            lock (_locker)
             {
                 Array.Copy(_array, 0, array, arrayIndex, _count);
             }
@@ -122,7 +121,7 @@ namespace Collections.CustomList
 
         public int IndexOf(T item)
         {
-            using (_locker.Read())
+            lock (_locker)
             {
                 for (int i = 0; i < _count; i++)
                 {
@@ -138,7 +137,7 @@ namespace Collections.CustomList
 
         public void Insert(int index, T item)
         {
-            using (_locker.Write())
+            lock (_locker)
             {
                 if (index < 0 || index > _count)
                 {
@@ -158,7 +157,7 @@ namespace Collections.CustomList
 
         public bool Remove(T item)
         {
-            using (_locker.Write())
+            lock (_locker)
             {
                 int index = IndexOf(item);
                 if (index == -1)
@@ -173,7 +172,7 @@ namespace Collections.CustomList
 
         public void RemoveAt(int index)
         {
-            using (_locker.Write())
+            lock (_locker)
             {
                 if (index < 0 || index >= _count)
                 {
@@ -186,7 +185,7 @@ namespace Collections.CustomList
 
         public IEnumerator<T> GetEnumerator()
         {
-            using (_locker.Read())
+            lock (_locker)
             {
                 for (int i = 0; i < _count; i++)
                 {

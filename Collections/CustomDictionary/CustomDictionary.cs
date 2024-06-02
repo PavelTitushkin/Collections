@@ -22,7 +22,7 @@ namespace Collections.CustomDictionary
         private IEqualityComparer<TKey> comparer;
         private KeyCollection keys;
         private ValueCollection values;
-        private ReadWriteLocker locker = new ReadWriteLocker();
+        private readonly object locker = new object();
 
         public CustomDictionary() : this(0, null) { }
 
@@ -47,7 +47,7 @@ namespace Collections.CustomDictionary
         {
             get
             {
-                using (locker.Read())
+                lock(locker)
                 {
                     int i = FindEntry(key);
                     if (i >= 0)
@@ -60,7 +60,7 @@ namespace Collections.CustomDictionary
             }
             set
             {
-                using(locker.Write())
+                lock (locker)
                 {
                     Insert(key, value, false);
                 }
@@ -71,7 +71,7 @@ namespace Collections.CustomDictionary
         {
             get
             {
-                using (locker.Read())
+                lock (locker)
                 {
                     Contract.Ensures(Contract.Result<KeyCollection>() != null);
                     if (keys == null)
@@ -88,7 +88,7 @@ namespace Collections.CustomDictionary
         {
             get
             {
-                using (locker.Read())
+                lock (locker)
                 {
                     Contract.Ensures(Contract.Result<ValueCollection>() != null);
                     if (values == null)
@@ -105,7 +105,7 @@ namespace Collections.CustomDictionary
         {
             get 
             {
-                using (locker.Read())
+                lock (locker)
                 {
                     return count - freeCount;
                 }
@@ -116,7 +116,7 @@ namespace Collections.CustomDictionary
 
         public void Add(TKey key, TValue value)
         {
-            using (locker.Write())
+            lock (locker)
             {
                 Insert(key, value, true);
             }
@@ -124,7 +124,7 @@ namespace Collections.CustomDictionary
 
         public void Add(KeyValuePair<TKey, TValue> item)
         {
-            using (locker.Write())
+            lock (locker)
             {
                 Add(item.Key, item.Value);
             }
@@ -132,7 +132,7 @@ namespace Collections.CustomDictionary
 
         public void Clear()
         {
-            using (locker.Write())
+            lock (locker)
             {
                 if (count > 0)
                 {
@@ -151,7 +151,7 @@ namespace Collections.CustomDictionary
 
         public bool Contains(KeyValuePair<TKey, TValue> item)
         {
-            using (locker.Read())
+            lock (locker)
             {
                 int i = FindEntry(item.Key);
                 if (i >= 0 && EqualityComparer<TValue>.Default.Equals(entries[i].value, item.Value))
@@ -165,7 +165,7 @@ namespace Collections.CustomDictionary
 
         public bool ContainsKey(TKey key)
         {
-            using (locker.Read())
+            lock (locker)
             {
                 return FindEntry(key) >= 0;
             }
@@ -182,7 +182,7 @@ namespace Collections.CustomDictionary
             {
                 throw new ArgumentNullException();
             }
-            using (locker.Write())
+            lock (locker)
             {
                 if (buckets != null)
                 {
@@ -218,7 +218,7 @@ namespace Collections.CustomDictionary
 
         public bool Remove(KeyValuePair<TKey, TValue> item)
         {
-            using (locker.Write())
+            lock (locker)
             {
                 int i = FindEntry(item.Key);
                 if (i >= 0 && EqualityComparer<TValue>.Default.Equals(entries[i].value, item.Value))
@@ -234,7 +234,7 @@ namespace Collections.CustomDictionary
 
         public bool TryGetValue(TKey key, [MaybeNullWhen(false)] out TValue value)
         {
-            using (locker.Read())
+            lock (locker)
             {
                 int i = FindEntry(key);
                 if (i >= 0)
@@ -250,7 +250,7 @@ namespace Collections.CustomDictionary
 
         IEnumerator IEnumerable.GetEnumerator()
         {
-            using(locker.Read())
+            lock (locker)
             {
                 for (int i = 0; i < count; i++)
                 {
@@ -264,7 +264,7 @@ namespace Collections.CustomDictionary
 
         public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator()
         {
-           using(locker.Read())
+            lock (locker)
             {
                 for (int i = 0; i < count; i++)
                 {

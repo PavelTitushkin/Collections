@@ -1,10 +1,10 @@
 ﻿namespace Collections.CustomDictionary
 {
-    public class ReadWriteLocker : IDisposable
+    public class ReadWriteLocker :IDisposable
     {
         private readonly ReaderWriterLockSlim _locker = new ReaderWriterLockSlim();
 
-        public struct WriteLock : IDisposable
+        public ref struct WriteLock 
         {
             private readonly ReaderWriterLockSlim _locker;
             public WriteLock(ReaderWriterLockSlim locker)
@@ -18,7 +18,7 @@
             }
         }
 
-        public struct ReadLock : IDisposable
+        public ref struct ReadLock
         {
             private readonly ReaderWriterLockSlim _locker;
             public ReadLock(ReaderWriterLockSlim locker)
