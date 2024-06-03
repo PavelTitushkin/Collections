@@ -6,7 +6,7 @@ namespace Collections.CustomDictionary
 {
     public class CustomDictionary<TKey, TValue> : IDictionary<TKey, TValue>
     {
-        private struct Entry
+        public struct Entry
         {
             public int hashCode;
             public int next;
@@ -43,6 +43,8 @@ namespace Collections.CustomDictionary
             this.comparer = comparer ?? EqualityComparer<TKey>.Default;
         }
 
+        public Entry[] GetEntries() => entries;
+        public int GetVersion() => version;
         public TValue this[TKey key]
         {
             get
@@ -250,30 +252,12 @@ namespace Collections.CustomDictionary
 
         IEnumerator IEnumerable.GetEnumerator()
         {
-            lock (locker)
-            {
-                for (int i = 0; i < count; i++)
-                {
-                    if (entries[i].hashCode >= 0)
-                    {
-                        yield return new KeyValuePair<TKey, TValue>(entries[i].key, entries[i].value);
-                    }
-                }
-            }
+            return GetEnumerator();
         }
 
         public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator()
         {
-            lock (locker)
-            {
-                for (int i = 0; i < count; i++)
-                {
-                    if (entries[i].hashCode >= 0)
-                    {
-                        yield return new KeyValuePair<TKey, TValue>(entries[i].key, entries[i].value);
-                    }
-                }
-            }
+            return new CustomDictionaryEnumerator<TKey, TValue>(this);
         }
 
         private int FindEntry(TKey key)
